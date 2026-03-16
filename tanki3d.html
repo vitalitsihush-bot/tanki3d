@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Tanki 3D</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{background:#0a0a1e;overflow:hidden;font-family:'Courier New',monospace;color:#e0e0ff;width:100dvw;height:100dvh}
+#three-canvas{position:fixed;inset:0;z-index:1}
+.screen{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(6,6,20,.92);z-index:20;gap:14px;padding:20px;backdrop-filter:blur(4px)}
+.screen.off{display:none}
+h1{font-size:2.6em;letter-spacing:8px;color:#00ffaa;text-shadow:0 0 40px #00ffaa55;margin-bottom:4px}
+.sub{color:#556;font-size:.85em;letter-spacing:2px;margin-bottom:12px}
+.btn{background:transparent;border:2px solid #00ffaa;color:#00ffaa;padding:13px 36px;font-family:inherit;font-size:.95em;letter-spacing:3px;cursor:pointer;border-radius:6px;transition:.15s;min-width:230px;text-align:center;text-transform:uppercase}
+.btn:hover,.btn:active{background:#00ffaa18;box-shadow:0 0 24px #00ffaa33}
+.btn.red{border-color:#ff3355;color:#ff3355}.btn.red:hover{background:#ff335518}
+.btn.dim{border-color:#334;color:#446;cursor:default}
+.code-box{font-size:2.6em;letter-spacing:14px;color:#ffe600;text-shadow:0 0 30px #ffe60055;border:2px solid #ffe60044;border-radius:10px;padding:14px 28px;background:#ffe60008;cursor:pointer;user-select:all;transition:.2s}
+.code-box:hover{border-color:#ffe60088;background:#ffe60014}
+input.ci{background:transparent;border:2px solid #00ffaa55;color:#00ffaa;padding:12px 20px;font-family:inherit;font-size:2em;text-align:center;letter-spacing:12px;border-radius:6px;outline:none;width:220px;text-transform:uppercase;transition:.2s}
+input.ci:focus{border-color:#00ffaa;box-shadow:0 0 20px #00ffaa22}
+input.ci::placeholder{color:#00ffaa25;letter-spacing:6px}
+#err{font-size:.8em;color:#ff3355;min-height:1.1em}
+#msg{font-size:.8em;color:#556;min-height:1.1em}
+.plist{display:flex;flex-direction:column;gap:8px;width:250px;margin:4px 0}
+.prow{padding:9px 16px;border:1.5px solid #1a1a2e;border-radius:6px;font-size:.85em;color:#334;letter-spacing:1px;transition:.3s}
+.prow.on{color:#e0e0ff}
+#hud{position:fixed;top:10px;left:10px;z-index:15;display:none;flex-direction:column;gap:6px;pointer-events:none}
+.hb{background:#07071488;border:1px solid #1a1a35;border-radius:6px;padding:5px 10px;min-width:130px;backdrop-filter:blur(2px)}
+.hbf{height:7px;border-radius:4px;margin-top:4px;transition:width .12s}
+#stick{position:fixed;bottom:28px;left:28px;width:118px;height:118px;background:rgba(255,255,255,.05);border:2px solid rgba(255,255,255,.12);border-radius:50%;z-index:15;touch-action:none;display:none}
+#thumb{position:absolute;width:50px;height:50px;background:#00ffaa66;border:2px solid #00ffaaaa;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;transition:background .1s}
+#stick2{position:fixed;bottom:28px;right:28px;width:118px;height:118px;background:rgba(255,80,80,.06);border:2px solid rgba(255,51,85,.2);border-radius:50%;z-index:15;touch-action:none;display:none}
+#thumb2{position:absolute;width:50px;height:50px;background:#ff335555;border:2px solid #ff3355aa;border-radius:50%;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;transition:background .12s}
+#thumb2.firing{background:#ff335599;border-color:#ff3355}
+#leaderboard{position:fixed;top:10px;right:10px;z-index:15;display:none;flex-direction:column;gap:3px;pointer-events:none;min-width:190px;max-width:230px}
+.lbrow{display:flex;align-items:center;gap:7px;padding:4px 10px;background:#07071488;border:1px solid #1a1a3566;border-radius:6px;font-size:.75em;backdrop-filter:blur(2px);transition:border-color .3s}
+.lbrow.me{border-color:#ffffff22}
+.lbrank{color:#445;min-width:14px;text-align:right;font-size:.85em}
+.lbname{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lbkills{min-width:22px;text-align:right;color:#aaa;font-size:.85em}
+.lbhpbar{width:40px;height:4px;border-radius:2px;background:#1a1a35;overflow:hidden;flex-shrink:0}
+.lbhpfill{height:100%;border-radius:2px;transition:width .15s}
+#killfeed{position:fixed;top:10px;left:10px;z-index:15;display:none;flex-direction:column;gap:5px;pointer-events:none;align-items:flex-start}
+.kf{font-size:.75em;color:#ff3355;background:#07071488;border:1px solid #ff335533;border-radius:4px;padding:4px 10px;animation:fadeout 3s forwards;align-self:flex-start}
+@keyframes fadeout{0%,60%{opacity:1}100%{opacity:0}}
+#over-title{font-size:2.2em;letter-spacing:6px}
+.hint{font-size:.72em;color:#334;margin-top:2px;letter-spacing:1px}
+</style>
+</head>
+<body>
+<div id="three-canvas"></div>
+
+<!-- MENU -->
+<div class="screen" id="s-menu">
+  <h1>TANKI 3D</h1>
+  <div class="sub">мультиплеер · p2p · браузер</div>
+  <div style="display:flex;flex-direction:column;gap:6px;align-items:center;margin-bottom:4px">
+    <label style="color:#445;font-size:.75em;letter-spacing:2px">ТВОЙ НИК</label>
+    <input class="ci" id="nick-input" maxlength="12" placeholder="ИГРОК" style="width:200px;font-size:1.4em;letter-spacing:4px"
+      oninput="saveNick()" onkeydown="if(event.key==='Enter')this.blur()">
+  </div>
+  <button class="btn" onclick="doCreate()">🏠 &nbsp;Создать комнату</button>
+  <button class="btn" onclick="show('s-join')">🔗 &nbsp;Войти в комнату</button>
+  <div class="hint">WASD / стрелки — движение &nbsp;·&nbsp; Пробел — огонь</div>
+</div>
+
+<!-- JOIN -->
+<div class="screen off" id="s-join">
+  <h1>ВОЙТИ</h1>
+  <div class="sub">введи код комнаты</div>
+  <input class="ci" id="ji" maxlength="4" placeholder="XXXX" onkeydown="if(event.key==='Enter')doJoin()">
+  <button class="btn" onclick="doJoin()">Войти</button>
+  <button class="btn red" onclick="show('s-menu')">Назад</button>
+  <span id="err"></span>
+</div>
+
+<!-- LOBBY -->
+<div class="screen off" id="s-lobby">
+  <h1>ЛОББИ</h1>
+  <div class="sub">поделись кодом с другом</div>
+  <div class="code-box" id="lcode" onclick="shareCode()" title="нажми чтобы скопировать">????</div>
+  <div class="hint">нажми чтобы скопировать &nbsp;·&nbsp; до 4 игроков</div>
+  <div class="plist" id="plist"></div>
+  <span id="msg"></span>
+  <button class="btn" id="sbtn" onclick="doStart()" style="display:none">▶ &nbsp;Начать игру</button>
+  <button class="btn red" onclick="doLeave()">Выйти</button>
+</div>
+
+<!-- GAME OVER -->
+<div class="screen off" id="s-over">
+  <h1 id="over-title">КОНЕЦ</h1>
+  <p id="over-sub" style="color:#778;font-size:1.1em;margin:8px 0 4px"></p>
+  <p id="over-scores" style="color:#445;font-size:.82em;margin-bottom:16px;line-height:1.8"></p>
+  <button class="btn" id="rbtn" onclick="doRematch()" style="display:none">🔄 &nbsp;Сыграть снова</button>
+  <p id="over-wait" style="color:#445;font-size:.82em;display:none">⏳ ожидание хоста...</p>
+  <div id="over-cd" style="font-size:2.4em;color:#00ffaa;letter-spacing:6px;min-height:1.2em;text-shadow:0 0 24px #00ffaa66"></div>
+  <button class="btn red" onclick="doLeave()" style="margin-top:8px">В меню</button>
+</div>
+
+<div id="hud"></div>
+<div id="killfeed"></div>
+<div id="leaderboard"></div>
+<div id="stick"><div id="thumb"></div></div>
+<div id="stick2">
+  <div id="thumb2"></div>
+  <svg id="fire-ring" width="118" height="118" style="position:absolute;inset:0;pointer-events:none;transition:opacity .1s;opacity:0"><circle cx="59" cy="59" r="55" fill="none" stroke="#ff3355" stroke-width="3" stroke-dasharray="8 6" opacity=".9"/><line x1="59" y1="4" x2="59" y2="20" stroke="#ff3355" stroke-width="2" stroke-linecap="round"/><line x1="59" y1="98" x2="59" y2="114" stroke="#ff3355" stroke-width="2" stroke-linecap="round"/><line x1="4" y1="59" x2="20" y2="59" stroke="#ff3355" stroke-width="2" stroke-linecap="round"/><line x1="98" y1="59" x2="114" y2="59" stroke="#ff3355" stroke-width="2" stroke-linecap="round"/></svg>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+<script>
+'use strict';
+
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const PFX='tnk3d-', HALF=18, SPOFF=13;
+const TSPD=7, BSPD=16, FCD=0.55, BDMG=30, SYNCHZ=30;
+const COLS=[0x00ffaa,0xff3355,0x4488ff,0xffdd00];
+const CNAMES=[['Ягуар','#00ffaa'],['Барс','#ff3355'],['Сапфир','#4488ff'],['Золото','#ffdd00']];
+const SPAWNS=[[-SPOFF,-SPOFF,Math.PI*.25],[SPOFF,SPOFF,-Math.PI*.75],[SPOFF,-SPOFF,Math.PI*.75],[-SPOFF,SPOFF,-Math.PI*.25]];
+const OBS=[[-6,-6,1.5,1.5],[6,-6,1.5,1.5],[-6,6,1.5,1.5],[6,6,1.5,1.5],[0,-10,2,.9],[0,10,2,.9],[-10,0,.9,2],[10,0,.9,2],[0,0,2.2,2.2],[-4,-4,.9,.9],[4,-4,.9,.9],[-4,4,.9,.9],[4,4,.9,.9]];
+
+// ─── PEER STATE ───────────────────────────────────────────────────────────────
+let peer=null, conns={}, isHost=false, myId=null, roomCode=null;
+let order=[], gState=null, alive=false, lastSync=0;
+let myNick='', nicks={};
+
+function getNick(pid){return nicks[pid]||'???';}
+function getColor(idx){return CNAMES[idx%CNAMES.length][1];}
+
+// ─── INPUT ────────────────────────────────────────────────────────────────────
+let inp={dx:0,dz:0,fire:false,ta:null}; // ta = turret world angle (null = follow hull)
+
+// ─── THREE.JS ─────────────────────────────────────────────────────────────────
+let scene,cam,ren,clock,tObjs={},bObjs={},pParts=[];
+
+function initThree(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x07071a);
+  scene.fog=new THREE.Fog(0x07071a,38,75);
+
+  cam=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,.1,120);
+  cam.position.set(0,23,15); cam.lookAt(0,0,0);
+
+  ren=new THREE.WebGLRenderer({antialias:true});
+  ren.setPixelRatio(Math.min(devicePixelRatio,2));
+  ren.setSize(innerWidth,innerHeight);
+  ren.shadowMap.enabled=true; ren.shadowMap.type=THREE.PCFSoftShadowMap;
+  document.getElementById('three-canvas').appendChild(ren.domElement);
+  clock=new THREE.Clock();
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0x304060,.65));
+  const sun=new THREE.DirectionalLight(0xffffff,1.3);
+  sun.position.set(12,22,8); sun.castShadow=true;
+  sun.shadow.mapSize.setScalar(2048);
+  sun.shadow.camera.near=1; sun.shadow.camera.far=80;
+  sun.shadow.camera.left=sun.shadow.camera.bottom=-28;
+  sun.shadow.camera.right=sun.shadow.camera.top=28;
+  scene.add(sun);
+  const fill=new THREE.DirectionalLight(0x4060ff,.4);
+  fill.position.set(-10,10,-10); scene.add(fill);
+
+  // Floor
+  const fl=new THREE.Mesh(new THREE.PlaneGeometry((HALF+2)*2,(HALF+2)*2,36,36),new THREE.MeshLambertMaterial({color:0x111126}));
+  fl.rotation.x=-Math.PI/2; fl.receiveShadow=true; scene.add(fl);
+
+  // Grid lines
+  const g=new THREE.GridHelper(HALF*2,20,0x1a1a38,0x16163a); g.position.y=.02; scene.add(g);
+
+  // Spawn markers
+  SPAWNS.forEach(([sx,sz],i)=>{
+    const geo=new THREE.RingGeometry(.8,1.1,24);
+    const mat=new THREE.MeshBasicMaterial({color:COLS[i],transparent:true,opacity:.25,side:THREE.DoubleSide});
+    const m=new THREE.Mesh(geo,mat); m.rotation.x=-Math.PI/2; m.position.set(sx,.02,sz); scene.add(m);
+  });
+
+  // Borders
+  mkWall(0,-HALF,HALF*2+2,2,0x1e2247);
+  mkWall(0,HALF,HALF*2+2,2,0x1e2247);
+  mkWall(-HALF,0,2,HALF*2+2,0x1e2247);
+  mkWall(HALF,0,2,HALF*2+2,0x1e2247);
+  OBS.forEach(([x,z,hw,hd])=>mkWall(x,z,hw*2,hd*2,0x1e2247));
+
+  addEventListener('resize',()=>{
+    cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix();
+    ren.setSize(innerWidth,innerHeight);
+  });
+
+  loop();
+}
+
+function mkWall(x,z,w,d,col){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,2,d),new THREE.MeshLambertMaterial({color:col}));
+  m.position.set(x,1,z); m.castShadow=m.receiveShadow=true; scene.add(m);
+  const e=new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:0x3344aa,linewidth:1}));
+  m.add(e); return m;
+}
+
+function mkTank(col){
+  const root=new THREE.Group();
+  const bm=new THREE.MeshLambertMaterial({color:col});
+  const tm=new THREE.MeshLambertMaterial({color:0x111122});
+
+  // Hull
+  const hull=new THREE.Mesh(new THREE.BoxGeometry(1.4,.6,1.85),bm);
+  hull.position.y=.45; hull.castShadow=true; root.add(hull);
+
+  // Tracks
+  for(const sx of[-0.82,.82]){
+    const tr=new THREE.Mesh(new THREE.BoxGeometry(.28,.38,2.0),tm);
+    tr.position.set(sx,.26,0); root.add(tr);
+    // Track bolts
+    for(let i=-1;i<=1;i++){
+      const bolt=new THREE.Mesh(new THREE.CylinderGeometry(.07,.07,.1,6),tm);
+      bolt.position.set(sx,.46,i*.6); bolt.rotation.x=Math.PI/2; root.add(bolt);
+    }
+  }
+
+  // Turret
+  const tur=new THREE.Group(); tur.position.y=.82;
+  const dome=new THREE.Mesh(new THREE.CylinderGeometry(.44,.5,.42,10),bm);
+  dome.castShadow=true; tur.add(dome);
+
+  // Barrel
+  const brl=new THREE.Mesh(new THREE.CylinderGeometry(.08,.1,.88,7),new THREE.MeshLambertMaterial({color:0x0a0a18}));
+  brl.rotation.x=Math.PI/2; brl.position.set(0,.04,-.72); tur.add(brl);
+
+  // Barrel ring
+  const ring=new THREE.Mesh(new THREE.TorusGeometry(.12,.04,6,8),new THREE.MeshLambertMaterial({color:0x222233}));
+  ring.rotation.x=Math.PI/2; ring.position.set(0,.04,-.34); tur.add(ring);
+
+  root.add(tur);
+
+  // Glow shell
+  const glow=new THREE.Mesh(new THREE.BoxGeometry(1.5,.65,2.0),new THREE.MeshBasicMaterial({color:col,transparent:true,opacity:.18,side:THREE.BackSide}));
+  glow.position.y=.45; root.add(glow);
+
+  scene.add(root);
+  return{root,tur};
+}
+
+function mkBullet(){
+  const b=new THREE.Mesh(new THREE.SphereGeometry(.2,8,8),new THREE.MeshBasicMaterial({color:0xffee22}));
+  const g=new THREE.Mesh(new THREE.SphereGeometry(.38,8,8),new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:.35}));
+  b.add(g); b.position.y=.85; scene.add(b); return b;
+}
+
+function boom(x,z){
+  for(let i=0;i<14;i++){
+    const p=new THREE.Mesh(
+      new THREE.SphereGeometry(.12+Math.random()*.2,4,4),
+      new THREE.MeshBasicMaterial({color:i<7?0xff8800:0xffee22,transparent:true})
+    );
+    const a=Math.random()*Math.PI*2, s=4+Math.random()*7;
+    p.position.set(x,.6,z);
+    p._vx=Math.cos(a)*s; p._vy=2.5+Math.random()*5; p._vz=Math.sin(a)*s;
+    p._life=.45+Math.random()*.35; p._ml=p._life;
+    scene.add(p); pParts.push(p);
+  }
+  // Flash ring
+  const ring=new THREE.Mesh(new THREE.RingGeometry(.1,1.4,16),new THREE.MeshBasicMaterial({color:0xff8800,transparent:true,opacity:.7,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(x,.1,z); ring._life=.3; ring._ml=.3; ring._ring=true;
+  scene.add(ring); pParts.push(ring);
+}
+
+// ─── GAME LOGIC (HOST) ────────────────────────────────────────────────────────
+function hitWall(x,z,r){
+  if(Math.abs(x)>HALF-r||Math.abs(z)>HALF-r)return true;
+  for(const[ox,oz,hw,hd]of OBS)if(x+r>ox-hw&&x-r<ox+hw&&z+r>oz-hd&&z-r<oz+hd)return true;
+  return false;
+}
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+function hostTick(dt){
+  for(const pid of order){
+    const t=gState.tanks[pid]; if(!t||!t.alive)continue;
+    const i=t._i||{};
+    let vx=0,vz=0;
+    if(i.dx||i.dz){
+      const len=Math.hypot(i.dx,i.dz)||1, nx=i.dx/len, nz=i.dz/len;
+      const ex=t.x+nx*TSPD*dt, ez=t.z+nz*TSPD*dt;
+      if(!hitWall(ex,t.z,.88)){t.x=clamp(ex,-HALF+1,HALF-1);vx=nx*TSPD;}
+      if(!hitWall(t.x,ez,.88)){t.z=clamp(ez,-HALF+1,HALF-1);vz=nz*TSPD;}
+      t.a=Math.atan2(nx,nz)+Math.PI;
+    }
+    t.vx=vx; t.vz=vz;
+    if(i.ta!=null){t.ta=i.ta;}else{t.ta=t.a;}
+    t.cd=Math.max(0,(t.cd||0)-dt);
+    if(i.fire&&t.cd<=0){
+      const a=t.ta;
+      gState.bullets.push({id:'b'+(gState.seq++),own:pid,x:t.x-Math.sin(a)*1.15,z:t.z-Math.cos(a)*1.15,dx:-Math.sin(a),dz:-Math.cos(a),life:2.5});
+      t.cd=FCD;
+    }
+  }
+
+  // Bullets
+  for(let i=gState.bullets.length-1;i>=0;i--){
+    const b=gState.bullets[i];
+    b.x+=b.dx*BSPD*dt; b.z+=b.dz*BSPD*dt; b.life-=dt;
+    let dead=b.life<=0||hitWall(b.x,b.z,.22);
+    if(!dead){
+      for(const pid of order){
+        const t=gState.tanks[pid]; if(!t||!t.alive||pid===b.own)continue;
+        if(Math.hypot(b.x-t.x,b.z-t.z)<1.05){
+          t.hp-=BDMG; if(t.hp<=0){t.hp=0;t.alive=false;gState.kills=gState.kills||[];gState.kills.push({killer:b.own,victim:pid});const kt=gState.tanks[b.own];if(kt)kt.kills=(kt.kills||0)+1;}
+          gState.expl=[b.x,b.z]; dead=true; break;
+        }
+      }
+    }
+    if(dead)gState.bullets.splice(i,1);
+  }
+
+  // Win check
+  if(order.length>1){
+    const living=order.filter(p=>gState.tanks[p]?.alive);
+    if(living.length<=1) gState.winner=living[0]||null;
+  }
+}
+
+// ─── NETWORK ──────────────────────────────────────────────────────────────────
+function initPeer(cid,cb){
+  const cfg={debug:0,config:{iceServers:[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun1.l.google.com:19302'}]}};
+  peer=cid?new Peer(cid,cfg):new Peer(cfg);
+  peer.on('open',id=>{myId=id;cb();});
+  peer.on('connection',c=>setupConn(c));
+  peer.on('error',e=>{
+    if(e.type==='unavailable-id'){doCreate();return;}
+    if(e.type==='peer-unavailable'){setErr('Комната не найдена');return;}
+    console.warn(e);
+  });
+}
+
+function setupConn(c){
+  conns[c.peer]=c;
+  c.on('open',()=>{
+    if(isHost)onJoin(c.peer);
+    else c.send({t:'hello',nick:myNick||'Игрок'});
+  });
+  c.on('data',d=>onMsg(c.peer,d));
+  c.on('close',()=>{
+    delete conns[c.peer];
+    if(isHost&&alive&&gState?.tanks[c.peer]){gState.tanks[c.peer].alive=false;}
+    if(isHost&&!alive)rmPlayer(c.peer);
+  });
+}
+
+function onMsg(from,msg){
+  if(msg.t==='hello'&&isHost){nicks[from]=sanitizeNick(msg.nick);bcastLobby();renderLobby();return;}
+  if(msg.t==='inp'&&isHost&&gState?.tanks[from]){gState.tanks[from]._i=msg;return;}
+  if(msg.t==='state'&&!isHost){applyState(msg.s);return;}
+  if(msg.t==='lobby'&&!isHost){nicks=msg.n||nicks;renderLobbyPlayers(msg.p);return;}
+  if(msg.t==='start'&&!isHost){nicks=msg.n||nicks;beginGame(msg.s,msg.o);return;}
+  if(msg.t==='over'&&!isHost){endGame(msg.w);return;}
+  if(msg.t==='rematch'&&!isHost){nicks=msg.n||nicks;startCountdown(msg.s,msg.o);return;}
+}
+
+function bcast(msg){Object.values(conns).forEach(c=>{if(c.open)c.send(msg);});}
+function snd(pid,msg){conns[pid]?.open&&conns[pid].send(msg);}
+
+// ─── LOBBY ────────────────────────────────────────────────────────────────────
+function rcode(){return Array.from({length:4},()=>'ABCDEFGHJKLMNPQRSTUVWXYZ2345678'[Math.random()*31|0]).join('');}
+
+function doCreate(){
+  roomCode=rcode();
+  initPeer(PFX+roomCode,()=>{
+    isHost=true; order=[myId]; gState=newState();
+    nicks[myId]=myNick||'Игрок';
+    gState.tanks[myId]=mkTankState(myId,0);
+    show('s-lobby'); el('lcode').textContent=roomCode;
+    el('sbtn').style.display='block'; renderLobby();
+  });
+}
+
+function onJoin(pid){
+  if(order.length>=4){snd(pid,{t:'kick'});return;}
+  order.push(pid); gState.tanks[pid]=mkTankState(pid,order.length-1);
+  bcastLobby(); renderLobby();
+}
+
+function rmPlayer(pid){
+  order=order.filter(x=>x!==pid); delete gState?.tanks[pid]; bcastLobby(); renderLobby();
+}
+
+function bcastLobby(){
+  const p=order.map((id,i)=>({id,name:getNick(id),col:CNAMES[i][1]}));
+  bcast({t:'lobby',p,n:nicks});
+}
+
+function doJoin(){
+  const code=el('ji').value.trim().toUpperCase();
+  if(code.length!==4){setErr('Введи ровно 4 символа');return;}
+  myNick=myNick||'Игрок';
+  setErr('Подключение...');
+  initPeer(null,()=>{
+    const c=peer.connect(PFX+code,{reliable:true});
+    conns[PFX+code]=c; setupConn(c);
+    c.on('open',()=>{roomCode=code;setErr('');show('s-lobby');el('lcode').textContent=code;});
+    setTimeout(()=>{if(!c.open)setErr('Не удалось подключиться');},9000);
+  });
+}
+
+function doStart(){
+  if(!isHost)return;
+  bcast({t:'start',s:strip(gState),o:order,n:nicks});
+  beginGame(gState,order);
+}
+
+// ─── GAME STATE ───────────────────────────────────────────────────────────────
+function newState(){return{tanks:{},bullets:[],seq:0,expl:null,kills:null,winner:undefined};}
+
+function mkTankState(pid,idx){
+  const[sx,sz,sa]=SPAWNS[idx%SPAWNS.length];
+  return{x:sx,z:sz,a:sa,ta:sa,vx:0,vz:0,hp:100,alive:true,col:COLS[idx],kills:0,_i:{},cd:0};
+}
+
+function strip(s){
+  const c=JSON.parse(JSON.stringify(s));
+  Object.values(c.tanks).forEach(t=>delete t._i); return c;
+}
+
+// ─── GAME FLOW ────────────────────────────────────────────────────────────────
+function beginGame(s,o){
+  gState=s; order=o; alive=true;
+  if(isHost){gState.tanks[myId]._i={};}
+  show('game');
+}
+
+function applyState(s){
+  if(!alive)return;
+  const prevEx=gState?.expl;
+  const prevKills=gState?.kills?.length||0;
+  // Preserve local tank's _i input
+  const myI=gState?.tanks[myId]?._i;
+  gState=s;
+  if(myI)gState.tanks[myId]._i=myI;
+  if(gState.expl&&JSON.stringify(gState.expl)!==JSON.stringify(prevEx))boom(gState.expl[0],gState.expl[1]);
+  if(gState.kills&&gState.kills.length>prevKills){
+    for(let i=prevKills;i<gState.kills.length;i++){
+      const k=gState.kills[i];
+      const ki=order.indexOf(k.killer), vi=order.indexOf(k.victim);
+      if(ki>=0&&vi>=0)addKillFeed(getNick(k.killer),getNick(k.victim),getColor(ki),getColor(vi));
+    }
+  }
+  if(gState.winner!==undefined&&alive)endGame(gState.winner);
+}
+
+// Dead reckoning: advance remote state between server packets
+function extrapolate(dt){
+  if(!gState)return;
+  for(const pid of order){
+    if(pid===myId)continue; // host handles local
+    const t=gState.tanks[pid]; if(!t||!t.alive)continue;
+    if(t.vx||t.vz){
+      const ex=t.x+t.vx*dt, ez=t.z+t.vz*dt;
+      if(!hitWall(ex,t.z,.88))t.x=clamp(ex,-HALF+1,HALF-1);
+      if(!hitWall(t.x,ez,.88))t.z=clamp(ez,-HALF+1,HALF-1);
+    }
+  }
+  // Advance bullets client-side too
+  for(const b of gState.bullets){
+    b.x+=b.dx*BSPD*dt; b.z+=b.dz*BSPD*dt; b.life-=dt;
+  }
+  gState.bullets=gState.bullets.filter(b=>b.life>0);
+}
+
+function endGame(winner){
+  if(!alive)return; alive=false;
+  const winName=winner?getNick(winner):'Никто';
+  const isWin=winner===myId;
+  el('over-title').textContent=isWin?'🏆 ПОБЕДА!':'💀 ПОРАЖЕНИЕ';
+  el('over-sub').textContent=`Победитель: ${winName}`;
+  let sc='';
+  for(let i=0;i<order.length;i++){
+    const pid=order[i], t=gState?.tanks[pid]; if(!t)continue;
+    const kills=(gState?.kills||[]).filter(k=>k.killer===pid).length;
+    sc+=`<span style="color:${getColor(i)}">${getNick(pid)}</span>: ${kills} убийств &nbsp;`;
+  }
+  el('over-scores').innerHTML=sc;
+  el('over-cd').textContent='';
+  if(isHost){el('rbtn').style.display='block';el('over-wait').style.display='none';}
+  else{el('rbtn').style.display='none';el('over-wait').style.display='block';}
+  show('s-over');
+}
+
+function doRematch(){
+  if(!isHost)return;
+  el('rbtn').style.display='none';
+  // Reset state with same players
+  const s=newState();
+  order.forEach((pid,i)=>{s.tanks[pid]=mkTankState(pid,i);});
+  gState=s;
+  bcast({t:'rematch',s:strip(gState),o:order,n:nicks});
+  startCountdown(gState,order);
+}
+
+let _cdTimer=null;
+function startCountdown(s,o){
+  if(_cdTimer)clearInterval(_cdTimer);
+  gState=s; order=o; _prevKLen=0;
+  el('over-wait').style.display='none';
+  el('rbtn').style.display='none';
+  let n=3;
+  el('over-cd').textContent=n;
+  _cdTimer=setInterval(()=>{
+    n--;
+    if(n>0){el('over-cd').textContent=n;}
+    else{clearInterval(_cdTimer);_cdTimer=null;beginGame(gState,order);}
+  },1000);
+}
+
+function doLeave(){
+  alive=false;
+  if(_cdTimer){clearInterval(_cdTimer);_cdTimer=null;}
+  if(peer){peer.destroy();peer=null;}
+  conns={}; isHost=false; myId=null; roomCode=null; order=[]; gState=null; nicks={};
+  inp={dx:0,dz:0,fire:false};
+  Object.values(tObjs).forEach(o=>scene?.remove(o.root));
+  Object.values(bObjs).forEach(m=>scene?.remove(m));
+  tObjs={}; bObjs={};
+  show('s-menu');
+}
+
+// ─── MAIN LOOP ────────────────────────────────────────────────────────────────
+function loop(){
+  requestAnimationFrame(loop);
+  const dt=Math.min(clock.getDelta(),.1);
+  const now=clock.oldTime/1000;
+
+  if(alive&&gState){
+    if(isHost){
+      gState.tanks[myId]._i={...inp};
+      hostTick(dt);
+      if(now-lastSync>1/SYNCHZ){
+        bcast({t:'state',s:strip(gState)}); lastSync=now;
+        if(gState.expl)boom(...gState.expl), gState.expl=null;
+        if(gState.kills?.length){
+          gState.kills.forEach((k,i)=>{
+            if(i>=(_prevKLen||0)){
+              const ki=order.indexOf(k.killer), vi=order.indexOf(k.victim);
+              if(ki>=0&&vi>=0)addKillFeed(getNick(k.killer),getNick(k.victim),getColor(ki),getColor(vi));
+            }
+          });
+          _prevKLen=gState.kills.length;
+        }
+        if(gState.winner!==undefined&&alive){
+          bcast({t:'over',w:gState.winner}); endGame(gState.winner);
+        }
+      }
+    } else {
+      // Client: send input at fixed rate, extrapolate every frame
+      extrapolate(dt);
+      if(now-lastSync>1/SYNCHZ){
+        Object.values(conns).forEach(c=>c.open&&c.send({t:'inp',...inp})); lastSync=now;
+      }
+    }
+    renderGame(dt);
+  }
+
+  // Particles always
+  for(let i=pParts.length-1;i>=0;i--){
+    const p=pParts[i]; p._life-=dt;
+    if(p._life<=0){scene.remove(p);pParts.splice(i,1);continue;}
+    const r=p._life/p._ml;
+    if(p._ring){p.scale.set(1+(1-r)*3,1,1+(1-r)*3);p.material.opacity=r*.7;}
+    else{p.position.x+=p._vx*dt;p.position.y+=p._vy*dt;p._vy-=14*dt;p.position.z+=p._vz*dt;p.material.opacity=r;}
+  }
+
+  ren.render(scene,cam);
+}
+
+let _prevKLen=0;
+
+function renderGame(dt){
+  // Tanks
+  for(const pid of order){
+    const t=gState.tanks[pid]; if(!t)continue;
+    if(!t.alive){if(tObjs[pid])tObjs[pid].root.visible=false;continue;}
+    if(!tObjs[pid])tObjs[pid]=mkTank(t.col);
+    const o=tObjs[pid]; o.root.visible=true;
+
+    if(pid===myId){
+      // My tank: fast lerp (feels responsive)
+      const a=1-Math.exp(-30*dt);
+      o.root.position.x+=(t.x-o.root.position.x)*a;
+      o.root.position.z+=(t.z-o.root.position.z)*a;
+    } else {
+      // Remote: dead reckoning already moves t.x/t.z every frame —
+      // just snap the mesh straight to it. No lerp chasing needed.
+      o.root.position.x=t.x;
+      o.root.position.z=t.z;
+    }
+
+    // Hull rotation — dt-based for everyone
+    const ra=pid===myId?30:25;
+    let da=t.a-o.root.rotation.y;
+    while(da>Math.PI)da-=Math.PI*2; while(da<-Math.PI)da+=Math.PI*2;
+    o.root.rotation.y+=da*(1-Math.exp(-ra*dt));
+
+    // Turret rotation
+    const ta=t.ta!=null?t.ta:t.a;
+    let dta=ta-o.root.rotation.y-o.tur.rotation.y;
+    while(dta>Math.PI)dta-=Math.PI*2; while(dta<-Math.PI)dta+=Math.PI*2;
+    o.tur.rotation.y+=dta*(1-Math.exp(-(pid===myId?35:28)*dt));
+  }
+
+  // Bullets
+  const active=new Set(gState.bullets.map(b=>b.id));
+  for(const id of Object.keys(bObjs))if(!active.has(id)){scene.remove(bObjs[id]);delete bObjs[id];}
+  for(const b of gState.bullets){
+    if(!bObjs[b.id])bObjs[b.id]=mkBullet();
+    bObjs[b.id].position.x=b.x; bObjs[b.id].position.z=b.z;
+  }
+
+  // Camera follow
+  const me=gState.tanks[myId];
+  if(me){
+    cam.position.x+=(me.x-cam.position.x)*.07;
+    cam.position.z+=(me.z+15-cam.position.z)*.07;
+    cam.position.y=23; cam.lookAt(me.x,0,me.z);
+  }
+
+  // HUD
+  let h='';
+  for(const pid of order){
+    const t=gState.tanks[pid]; if(!t)continue;
+    const co='#'+t.col.toString(16).padStart(6,'0');
+    const nm=getNick(pid);
+    const isMe=pid===myId;
+    h+=`<div class="hb" style="border-color:${co}44"><span style="color:${co};font-size:.72em">${nm}${isMe?' ◀':''}</span><div class="hbf" style="width:${Math.max(0,t.hp)}%;background:${co}"></div></div>`;
+  }
+  el('hud').innerHTML=h;
+  renderLeaderboard();
+}
+
+function renderLeaderboard(){
+  // Sort by kills desc, then hp desc
+  const rows=[...order].filter(pid=>gState.tanks[pid]).sort((a,b)=>{
+    const ta=gState.tanks[a], tb=gState.tanks[b];
+    const ka=ta.kills||0, kb=tb.kills||0;
+    return kb!==ka?kb-ka:(tb.hp||0)-(ta.hp||0);
+  });
+  let h='';
+  rows.forEach((pid,rank)=>{
+    const t=gState.tanks[pid];
+    const co='#'+t.col.toString(16).padStart(6,'0');
+    const hp=Math.max(0,t.hp||0);
+    const hpColor=hp>60?co:hp>30?'#ffaa00':'#ff3355';
+    const dead=!t.alive;
+    const isMe=pid===myId;
+    h+=`<div class="lbrow${isMe?' me':''}" style="${isMe?`border-color:${co}55`:''};opacity:${dead?.5:1}">
+      <span class="lbrank" style="color:${co}">${rank+1}</span>
+      <span class="lbname" style="color:${dead?'#445':co}">${getNick(pid)}${dead?' ☠':''}</span>
+      <span class="lbkills" style="color:${co}">${t.kills||0}💥</span>
+      <div class="lbhpbar"><div class="lbhpfill" style="width:${hp}%;background:${hpColor}"></div></div>
+    </div>`;
+  });
+  el('leaderboard').innerHTML=h;
+}
+
+function addKillFeed(killer,victim,kc,vc){
+  const kf=document.createElement('div');
+  kf.className='kf';
+  kf.innerHTML=`<span style="color:${kc}">${killer}</span> 💥 <span style="color:${vc}">${victim}</span>`;
+  el('killfeed').appendChild(kf);
+  setTimeout(()=>kf.remove(),3100);
+}
+
+// ─── UI ───────────────────────────────────────────────────────────────────────
+function el(id){return document.getElementById(id);}
+function setErr(m){el('err').textContent=m;}
+function setMsg(m){el('msg').textContent=m;}
+
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.add('off'));
+  if(id!=='game')el(id)?.classList.remove('off');
+  const g=id==='game';
+  el('hud').style.display=g?'flex':'none';
+  el('killfeed').style.display=g?'flex':'none';
+  el('leaderboard').style.display=g?'flex':'none';
+  el('stick').style.display=g?'block':'none';
+  el('stick2').style.display=g?'block':'none';
+}
+
+function renderLobby(){
+  const p=order.map((id,i)=>({id,name:getNick(id),col:CNAMES[i][1]}));
+  renderLobbyPlayers(p);
+}
+
+function renderLobbyPlayers(players){
+  let h='';
+  for(let i=0;i<4;i++){
+    const p=players[i];
+    h+=p?`<div class="prow on" style="border-color:${p.col}55;color:${p.col}">● ${p.name}</div>`:`<div class="prow">· ожидание ·</div>`;
+  }
+  el('plist').innerHTML=h;
+  if(isHost)setMsg(`Игроков: ${players.length} / 4`);
+}
+
+function sanitizeNick(n){
+  return (n||'').replace(/[<>"&]/g,'').trim().slice(0,12)||'Игрок';
+}
+
+function saveNick(){
+  myNick=sanitizeNick(el('nick-input').value);
+  try{localStorage.setItem('tnk_nick',myNick);}catch(e){}
+}
+
+function shareCode(){
+  const c=el('lcode').textContent;
+  if(navigator.share){navigator.share({title:'Tanki 3D',text:`Код комнаты: ${c}`});}
+  else navigator.clipboard?.writeText(c).then(()=>setMsg('Код скопирован!'));
+}
+
+// ─── CONTROLS ─────────────────────────────────────────────────────────────────
+// Keyboard
+addEventListener('keydown',e=>{
+  if(e.code==='KeyW'||e.code==='ArrowUp')inp.dz=-1;
+  if(e.code==='KeyS'||e.code==='ArrowDown')inp.dz=1;
+  if(e.code==='KeyA'||e.code==='ArrowLeft')inp.dx=-1;
+  if(e.code==='KeyD'||e.code==='ArrowRight')inp.dx=1;
+  if(e.code==='Space'){inp.fire=true;inp.ta=null;e.preventDefault();}
+});
+addEventListener('keyup',e=>{
+  if(e.code==='KeyW'||e.code==='ArrowUp'){if(inp.dz<0)inp.dz=0;}
+  if(e.code==='KeyS'||e.code==='ArrowDown'){if(inp.dz>0)inp.dz=0;}
+  if(e.code==='KeyA'||e.code==='ArrowLeft'){if(inp.dx<0)inp.dx=0;}
+  if(e.code==='KeyD'||e.code==='ArrowRight'){if(inp.dx>0)inp.dx=0;}
+  if(e.code==='Space')inp.fire=false;
+});
+
+// ─── TOUCH CONTROLS ───────────────────────────────────────────────────────────
+// Left joystick — movement
+{
+  const zone=el('stick'), thumb=el('thumb');
+  let tid=null, ox=0, oy=0;
+  zone.addEventListener('touchstart',e=>{
+    e.preventDefault(); const t=e.changedTouches[0]; tid=t.identifier;
+    const r=zone.getBoundingClientRect(); ox=r.left+r.width/2; oy=r.top+r.height/2;
+  },{passive:false});
+  addEventListener('touchmove',e=>{
+    if(tid===null)return;
+    const t=[...e.changedTouches].find(x=>x.identifier===tid); if(!t)return;
+    e.preventDefault();
+    const dx=t.clientX-ox, dy=t.clientY-oy, d=Math.hypot(dx,dy), a=Math.atan2(dy,dx), cd=Math.min(d,45);
+    thumb.style.left=(50+Math.cos(a)*cd/118*100)+'%'; thumb.style.top=(50+Math.sin(a)*cd/118*100)+'%';
+    inp.dx=d>10?Math.cos(a):0; inp.dz=d>10?Math.sin(a):0;
+  },{passive:false});
+  const reset=e=>{if([...e.changedTouches].some(t=>t.identifier===tid)){tid=null;inp.dx=inp.dz=0;thumb.style.left=thumb.style.top='50%';}};
+  addEventListener('touchend',reset); addEventListener('touchcancel',reset);
+}
+
+// Right joystick — turret aim + fire when pushed
+{
+  const zone=el('stick2'), thumb=el('thumb2'), ring=el('fire-ring');
+  const FIRE_THRESH=18; // px to start firing
+  let tid=null, ox=0, oy=0;
+  zone.addEventListener('touchstart',e=>{
+    e.preventDefault(); const t=e.changedTouches[0]; tid=t.identifier;
+    const r=zone.getBoundingClientRect(); ox=r.left+r.width/2; oy=r.top+r.height/2;
+    // Immediately set turret angle on touch, fire on threshold
+    const dx=t.clientX-ox, dy=t.clientY-oy, d=Math.hypot(dx,dy);
+    if(d>4){
+      // screen right=world +X, screen up=world -Z
+      inp.ta=Math.atan2(dy,-dx)+Math.PI/2;
+    }
+    inp.fire=d>FIRE_THRESH;
+    thumb.classList.toggle('firing',inp.fire);
+    ring.style.opacity=inp.fire?'1':'0';
+  },{passive:false});
+  addEventListener('touchmove',e=>{
+    if(tid===null)return;
+    const t=[...e.changedTouches].find(x=>x.identifier===tid); if(!t)return;
+    e.preventDefault();
+    const dx=t.clientX-ox, dy=t.clientY-oy, d=Math.hypot(dx,dy), a=Math.atan2(dy,dx), cd=Math.min(d,45);
+    thumb.style.left=(50+Math.cos(a)*cd/118*100)+'%'; thumb.style.top=(50+Math.sin(a)*cd/118*100)+'%';
+    if(d>4){
+      inp.ta=Math.atan2(dy,-dx)+Math.PI/2;
+    }
+    inp.fire=d>FIRE_THRESH;
+    thumb.classList.toggle('firing',inp.fire);
+    ring.style.opacity=inp.fire?'1':'0';
+  },{passive:false});
+  const reset=e=>{
+    if([...e.changedTouches].some(t=>t.identifier===tid)){
+      tid=null; inp.fire=false; inp.ta=null;
+      thumb.style.left=thumb.style.top='50%';
+      thumb.classList.remove('firing');
+      ring.style.opacity='0';
+    }
+  };
+  addEventListener('touchend',reset); addEventListener('touchcancel',reset);
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+try{
+  const saved=localStorage.getItem('tnk_nick');
+  if(saved){myNick=saved;el('nick-input').value=saved;}
+}catch(e){}
+initThree();
+</script>
+</body>
+</html>

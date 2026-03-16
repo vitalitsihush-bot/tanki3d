@@ -112,13 +112,10 @@ input.ci::placeholder{color:#00ffaa25;letter-spacing:6px}
 <script>
 'use strict';
 
-// ══════════════════════════════════════════════════════════════════
-//  CHANGE THIS after deploying to Railway:
-//  wss://YOUR-APP-NAME.up.railway.app
-// ══════════════════════════════════════════════════════════════════
-const SERVER_URL = (location.hostname==='localhost'||location.hostname==='127.0.0.1')
-  ? `ws://${location.hostname}:3000`
-  : 'wss://YOUR-APP-NAME.up.railway.app';
+// Auto-detect server URL
+const SERVER_URL = location.host
+  ? (location.protocol==='https:' ? 'wss://' : 'ws://') + location.host
+  : 'ws://localhost:3000';
 
 // ─── CONSTANTS (match server) ────────────────────────────────────
 const HALF=18, SPOFF=13, TSPD=7, BSPD=16, FCD=0.55;
@@ -169,7 +166,9 @@ function initThree(){
   sun.shadow.camera.left=sun.shadow.camera.bottom=-28;
   sun.shadow.camera.right=sun.shadow.camera.top=28;
   scene.add(sun);
-  scene.add(Object.assign(new THREE.DirectionalLight(0x4060ff,.4),{position:{x:-10,y:10,z:-10}}));
+  const fill=new THREE.DirectionalLight(0x4060ff,.4);
+  fill.position.set(-10,10,-10);
+  scene.add(fill);
   const fl=new THREE.Mesh(new THREE.PlaneGeometry((HALF+2)*2,(HALF+2)*2,36,36),new THREE.MeshLambertMaterial({color:0x111126}));
   fl.rotation.x=-Math.PI/2; fl.receiveShadow=true; scene.add(fl);
   const g=new THREE.GridHelper(HALF*2,20,0x1a1a38,0x16163a); g.position.y=.02; scene.add(g);
